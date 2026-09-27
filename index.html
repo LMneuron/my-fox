@@ -43,9 +43,11 @@ h1{font-size:24px; margin:0}
 .doing{font-size:15px; min-height:48px; margin-top:6px}
 .doing .when{color:var(--sub); font-size:13px; display:block; margin-top:4px}
 .stats{margin-top:16px; display:grid; gap:10px}
-.stat{display:grid; grid-template-columns:52px 1fr 36px; gap:8px; align-items:center; font-size:13px; color:var(--sub)}
+.stat{display:grid; grid-template-columns:52px 1fr 36px; gap:8px; align-items:center; font-size:13px; color:var(--sub); cursor:pointer; padding:6px; border-radius:6px; transition:background 0.2s}
+.stat:hover{background:var(--soft)}
+.stat:active{transform:scale(0.98)}
 .bar{display:block; height:6px; background:var(--surface); border-radius:999px; overflow:hidden}
-.bar i{display:block; height:6px; background:var(--accent); border-radius:999px}
+.bar i{display:block; height:6px; background:var(--accent); border-radius:999px; transition:width 0.4s ease}
 .bar.g i{background:var(--green)} .bar.o i{background:var(--orange)}
 .val{text-align:right; font-variant-numeric:tabular-nums; color:var(--text)}
 .actions{display:flex; gap:8px; margin-top:16px; flex-wrap:wrap}
@@ -83,6 +85,13 @@ ul.log time{color:var(--sub); font-size:13px; font-variant-numeric:tabular-nums;
 .item b{display:block; font-size:14px}
 .item small{color:var(--sub); font-size:13px}
 .item .rare{font-size:12px; color:var(--orange); background:var(--orange-soft); border-radius:999px; padding:2px 8px; display:inline-block; margin-top:6px}
+
+/* 自定义收藏框样式 */
+.custom-find-box { margin-top: 20px; padding: 16px; background: var(--surface); border-radius: 8px; border: 1px dashed var(--sub); }
+.custom-find-box p { margin: 0 0 10px 0; font-size: 14px; font-weight: 600; }
+.custom-find-box input { width: 100%; padding: 8px 10px; margin-bottom: 8px; border-radius: 6px; border: 1px solid var(--border); font-family: inherit; font-size: 14px;}
+.custom-find-box button { width: 100%; }
+
 .skills{display:grid; gap:14px}
 .skill .top{display:flex; justify-content:space-between; gap:8px; margin-bottom:6px; font-size:14px}
 .skill .top small{color:var(--sub)}
@@ -228,7 +237,8 @@ ul.recs li:last-child{border-bottom:none}
       </div>
       <div class="doing" id="doing"></div>
 
-      <div class="stats" id="stats"></div>
+      <!-- 状态条加了交互说明 -->
+      <div class="stats" id="stats" title="点一下试试！"></div>
 
       <div class="actions">
         <button class="btn primary" id="pat">摸摸头</button>
@@ -292,11 +302,6 @@ ul.recs li:last-child{border-bottom:none}
 (function(){
 "use strict";
 
-/* =========================================================
-   小狐狸的日子 v2.0
-   - 小狐狸的一生：出生时间 + 第几个时间段 确定式生成（现在一小时一件事）
-   - 陪着你：正计时，只存开始/结束两个时间戳，锁屏不影响
-   ========================================================= */
 var BIRTH = new Date("2026-09-26T08:00:00+08:00").getTime();
 var TICK = 60*60*1000;
 var MAX_TICKS = 24*500;
@@ -329,6 +334,36 @@ if (!Array.isArray(prefs.tags) || !prefs.tags.length) prefs.tags = DEFAULT_TAGS.
 if (!Array.isArray(prefs.records)) prefs.records = [];
 if (!prefs.timer || typeof prefs.timer !== "object") prefs.timer = null;
 if (!prefs.lastTag) prefs.lastTag = prefs.tags[0];
+// 记录用户自定义的物品
+if (!Array.isArray(prefs.customFinds)) prefs.customFinds = []; 
+
+/* ---- 真实天气数据 ---- */
+var realWeatherCache = { isRaining: null, lastCheck: 0 };
+function fetchRealWeather() {
+  // 如果1小时内检查过，就不再重复请求
+  if (Date.now() - realWeatherCache.lastCheck < 3600000 && realWeatherCache.isRaining !== null) return;
+  
+  // 先获取IP对应的经纬度，再获取天气 (免申请Key方案)
+  fetch("https://get.geojs.io/v1/ip/geo.json")
+    .then(function(res){ return res.json(); })
+    .then(function(geo){
+      return fetch("https://api.open-meteo.com/v1/forecast?latitude="+geo.latitude+"&longitude="+geo.longitude+"&current_weather=true");
+    })
+    .then(function(res){ return res.json(); })
+    .then(function(data){
+      var code = data.current_weather.weathercode;
+      // 气象WMO代码：50以上基本都是毛毛雨、雨、雪
+      realWeatherCache.isRaining = (code >= 50 && code <= 99);
+      realWeatherCache.lastCheck = Date.now();
+      paintScene(); // 更新画面
+    })
+    .catch(function(e){
+      console.log("真实天气获取失败，降级为随机天气");
+    });
+}
+// 一打开网页就尝试获取真实天气
+fetchRealWeather();
+
 
 /* ---- 确定式随机 ---- */
 function mulberry(seed){
@@ -398,6 +433,9 @@ function buildLife(now){
   if (total < 1) total = 1;
   if (total > MAX_TICKS) total = MAX_TICKS;
   var day = null, dayBuf = [], prev = null;
+  
+  // 合并系统物品和你自定义的物品
+  var ALL_FINDS = FINDS.concat(prefs.customFinds);
 
   for (var i=0;i<total;i++){
     var ts = BIRTH + (i+1)*TICK;
@@ -427,11 +465,11 @@ function buildLife(now){
 
     var entry = {ts:ts, t:act.t, rain:st.rain};
     if (r() < 0.12){
-      var cand = FINDS.filter(function(f){
+      var cand = ALL_FINDS.filter(function(f){
         var need = f.r===3?0.05:f.r===2?0.28:f.r===1?0.65:1;
         return r() < need;
       });
-      var found = cand.length ? pick(cand, r) : pick(FINDS, r);
+      var found = cand.length ? pick(cand, r) : pick(ALL_FINDS, r);
       if (!st.shelf.some(function(x){ return x.n === found.n; })){
         st.shelf.push({n:found.n, d:found.d, r:found.r, ts:ts});
         entry.found = found.n;
@@ -496,7 +534,6 @@ function moodWord(){
   return st.mood>78?"心情很好":st.mood>60?"挺安稳":st.mood>40?"有点发呆":st.mood>25?"没什么精神":"想你";
 }
 
-/* ---- 计时结束 → 小狐狸的一条动态 ---- */
 function endLine(rec){
   var m = rec.ms/60000;
   var what = rec.title ? ("「"+rec.title+"」") : (rec.tag ? ("「"+rec.tag+"」") : "");
@@ -540,22 +577,40 @@ function paintScene(){
   var orb = $("orb");
   orb.setAttribute("fill", p===3 ? "#F5F2E8" : "#F3D9A4");
   orb.setAttribute("r", p===3 ? 10 : 16);
-  var sleeping = /睡着|梦里/.test(last.t);
+  var sleeping = /睡着|梦里|安抚/.test(last.t);
   $("lidL").setAttribute("opacity", sleeping?1:0);
   $("lidR").setAttribute("opacity", sleeping?1:0);
   $("eyeL").setAttribute("opacity", sleeping?0:1);
   $("eyeR").setAttribute("opacity", sleeping?0:1);
-  $("prop").innerHTML = last.rain
+  
+  // 决定当前是否下雨：优先使用真实天气，如果没有获取到，用小狐狸世界的随机天气
+  var isRainingNow = realWeatherCache.isRaining !== null ? realWeatherCache.isRaining : last.rain;
+  
+  $("prop").innerHTML = isRainingNow
     ? '<g stroke="#9FB6CC" stroke-width="1.6" opacity=".55">'+
       [18,64,108,152,246,300,338].map(function(x,i){ return '<line x1="'+x+'" y1="'+(8+i*7)+'" x2="'+(x-8)+'" y2="'+(34+i*7)+'"/>'; }).join("")+'</g>' : "";
-  $("doing").innerHTML = escapeHtml(last.t) + "。<span class=\"when\">" + fmt(last.ts) + (last.rain?" · 外面在下雨":"") + "</span>";
+  
+  var weatherTag = realWeatherCache.isRaining !== null 
+    ? (isRainingNow ? " · 外面在下雨" : " · 窗外没下雨")
+    : (last.rain ? " · 外面在下雨" : "");
+    
+  $("doing").innerHTML = escapeHtml(last.t) + "。<span class=\"when\">" + fmt(last.ts) + weatherTag + "</span>";
   $("mood").textContent = moodWord();
   $("name").value = prefs.name;
   $("clock").textContent = "已经和你一起生活了 " + Math.max(1, Math.ceil((Date.now()-BIRTH)/86400000)) + " 天";
-  $("stats").innerHTML = [["精力",st.energy,""],["心情",st.mood,"g"],["吃饱",st.full,"o"],["好奇",st.curio,""]]
-    .map(function(r){ return '<div class="stat"><span>'+r[0]+'</span><span class="bar '+r[2]+'"><i style="width:'+r[1]+'%"></i></span><span class="val">'+r[1]+'</span></div>'; }).join("");
+  
+  // 渲染状态条 (增加了 data-act 属性为了点击交互)
+  $("stats").innerHTML = [
+    ["精力",st.energy,"","energy"],
+    ["心情",st.mood,"g","mood"],
+    ["吃饱",st.full,"o","full"],
+    ["好奇",st.curio,"","curio"]
+  ].map(function(r){ 
+    return '<div class="stat" data-act="stat" data-type="'+r[3]+'"><span>'+r[0]+'</span><span class="bar '+r[2]+'"><i style="width:'+r[1]+'%"></i></span><span class="val">'+r[1]+'</span></div>'; 
+  }).join("");
+  
   $("foot").innerHTML = storeOK
-    ? "它自己会过日子，不用管。名字、便签和你的计时记录都存在这台设备上。"
+    ? "点击状态条可以和小狐狸互动。名字、便签和你的计时记录都存在这台设备上。"
     : "它自己会过日子，不用管。这个打开方式不允许存东西，但它的日子、日记和收藏永远不会丢。";
 }
 
@@ -576,7 +631,16 @@ function paintPanel(){
       var r = ["常见","少见","稀有","只有一件"][it.r];
       return '<div class="item"><b>'+it.n+'</b><small>'+it.d+'</small>'+(it.r>0?'<span class="rare">'+r+'</span>':'')+'</div>';
     }).join("") + '</div>' : '<p class="empty">柜子还是空的。它总会捡到东西的。</p>';
-    html += '<p class="foot">已经收了 '+st.shelf.length+' / '+FINDS.length+' 件。</p>';
+    
+    // 神奇许愿池输入框
+    html += '<div class="custom-find-box">' +
+            '<p>神奇许愿池：埋点东西等它发现</p>' +
+            '<input type="text" id="customFindName" maxlength="12" placeholder="物品名称 (如: 一颗松果)">' +
+            '<input type="text" id="customFindDesc" maxlength="20" placeholder="一句话描述 (如: 散发着好闻的木头味)">' +
+            '<button class="btn primary" id="addCustomFind">埋进土里</button>' +
+            '</div>';
+            
+    html += '<p class="foot">已经收了 '+st.shelf.length+' 件。</p>';
   } else if (tab === "notes"){
     html = prefs.notes.length
       ? prefs.notes.map(function(n){
@@ -803,6 +867,49 @@ Array.prototype.forEach.call(document.querySelectorAll("[data-tab]"), function(b
 });
 Array.prototype.forEach.call(document.querySelectorAll(".vtab"), function(b){
   b.addEventListener("click", function(){ selectView(b.dataset.view); });
+});
+
+/* ---- 许愿池交互 ---- */
+$("panel").addEventListener("click", function(ev){
+  if(ev.target.id === "addCustomFind"){
+    var name = $("customFindName").value.trim();
+    var desc = $("customFindDesc").value.trim() || "你偷偷放在哪里的，等它发现。";
+    if(!name) return alert("要写上物品名称哦！");
+    
+    // 把物品加入你的自定义池（稀有度设为1或2，更容易被发现）
+    prefs.customFinds.push({ n: name, d: desc, r: 1 });
+    writePrefs();
+    
+    $("customFindName").value = "";
+    $("customFindDesc").value = "";
+    alert("好啦，物品已经悄悄放在世界的某个角落了，接下来就等小狐狸随机发现它吧！");
+  }
+});
+
+/* ---- 状态条交互 ---- */
+$("stats").addEventListener("click", function(ev){
+  var statBtn = ev.target.closest(".stat");
+  if(!statBtn) return;
+  var type = statBtn.dataset.type;
+  var now = Date.now();
+  var r = mulberry(now & 0xFFFFFF);
+  
+  if (type === "full") {
+    st.full = clamp(st.full + 15);
+    session.push({ts:now, t:pick(["你喂了它一颗小蓝莓，吧唧吧唧吃掉了","给它塞了一小块饼干，它很开心","你给它加了点水，它凑过去喝了"], r), rain:st.rain});
+  } else if (type === "energy") {
+    st.energy = clamp(st.energy + 20);
+    session.push({ts:now, t:pick(["你用手轻轻安抚它，它趴下休息了一会儿","你把它抱到了软垫上，它打了个哈欠"], r), rain:st.rain});
+  } else if (type === "mood") {
+    st.mood = clamp(st.mood + 10);
+    session.push({ts:now, t:pick(["你拿狗尾巴草逗了逗它，它扑了个空","你挠了挠它的下巴，它发出呼噜声"], r), rain:st.rain});
+  } else if (type === "curio") {
+    st.curio = clamp(st.curio + 10);
+    session.push({ts:now, t:pick(["你给它看了手机里的一张照片，它闻了闻屏幕","你晃了晃钥匙串，它歪着脑袋听声音"], r), rain:st.rain});
+  }
+  
+  selectTab("log"); 
+  paintScene();
 });
 
 /* ---- 小狐狸屏交互 ---- */
