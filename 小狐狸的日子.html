@@ -1,0 +1,493 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#F9F8F7">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="小狐狸的日子">
+<title>小狐狸的日子</title>
+<style>
+  :root{
+    --text:#2C2C2B; --sub:#7D7A75; --canvas:#FFFFFF; --soft:#F9F8F7;
+    --surface:#F0EFED; --border:#E6E5E3; --accent:#2783DE; --accent-soft:#E5F2FC;
+    --green:#46A171; --green-soft:#E8F1EC; --orange:#D5803B; --orange-soft:#FBEBDE;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0; background:var(--soft); color:var(--text);
+    font:16px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+  }
+  .wrap{max-width:1040px; margin:0 auto; padding:24px; padding-top:calc(24px + env(safe-area-inset-top)); padding-bottom:calc(24px + env(safe-area-inset-bottom))}
+  header{display:flex; align-items:baseline; gap:12px; margin-bottom:16px; flex-wrap:wrap}
+  h1{font-size:24px; margin:0}
+  .clock{font-size:14px; color:var(--sub)}
+  .grid{display:grid; grid-template-columns:360px 1fr; gap:16px; align-items:start}
+  .card{background:var(--canvas); border:1px solid var(--border); border-radius:12px}
+  .scene{padding:20px}
+  .stage{position:relative; height:168px; border-radius:8px; overflow:hidden; background:#EAF1F8; border:1px solid var(--border)}
+  .stage svg{position:absolute; inset:0; width:100%; height:100%}
+  .nameRow{display:flex; align-items:center; justify-content:space-between; gap:8px; margin:14px 0 2px}
+  .name{font-size:18px; font-weight:600; background:none; border:none; padding:0; color:var(--text); width:60%; font-family:inherit}
+  .name:focus{outline:2px solid var(--accent-soft); border-radius:4px}
+  .tag{font-size:12px; color:var(--sub); background:var(--surface); border-radius:999px; padding:4px 10px; white-space:nowrap}
+  .doing{font-size:15px; min-height:48px; margin-top:6px}
+  .doing .when{color:var(--sub); font-size:13px; display:block; margin-top:4px}
+  .stats{margin-top:16px; display:grid; gap:10px}
+  .stat{display:grid; grid-template-columns:52px 1fr 36px; gap:8px; align-items:center; font-size:13px; color:var(--sub)}
+  .bar{display:block; height:6px; background:var(--surface); border-radius:999px; overflow:hidden}
+  .bar i{display:block; height:6px; background:var(--accent); border-radius:999px}
+  .bar.g i{background:var(--green)} .bar.o i{background:var(--orange)}
+  .val{text-align:right; font-variant-numeric:tabular-nums; color:var(--text)}
+  .actions{display:flex; gap:8px; margin-top:16px; flex-wrap:wrap}
+  .btn{font:14px/1 inherit; padding:12px 14px; min-height:44px; border-radius:8px; cursor:pointer; background:var(--canvas); color:var(--text); border:1px solid var(--border)}
+  .btn:hover{background:var(--soft)}
+  .btn.primary{background:var(--accent-soft); border-color:#CFE6F8; color:#1B5E9E}
+  .noteBox{margin-top:12px; display:none}
+  .noteBox.open{display:block}
+  .noteBox textarea{
+    width:100%; min-height:72px; resize:vertical; padding:10px 12px; border-radius:8px;
+    border:1px solid var(--border); font:15px/1.5 inherit; color:var(--text); background:var(--soft);
+  }
+  .noteBox textarea:focus{outline:2px solid var(--accent-soft); border-color:#CFE6F8}
+  .noteBox .row{display:flex; gap:8px; margin-top:8px; align-items:center}
+  .noteBox small{color:var(--sub); font-size:13px}
+  .tabs{display:flex; gap:4px; border-bottom:1px solid var(--border); padding:8px 12px 0; flex-wrap:wrap}
+  .tab{font:14px/1 inherit; background:none; border:none; padding:12px; min-height:44px; color:var(--sub); cursor:pointer; border-bottom:2px solid transparent}
+  .tab[aria-selected="true"]{color:var(--text); border-bottom-color:var(--accent)}
+  .panel{padding:16px 20px 20px; max-height:520px; overflow:auto}
+  .banner{margin:0 0 14px; padding:12px 14px; background:var(--accent-soft); border-radius:8px; font-size:14px; color:#1B5E9E}
+  ul.log{list-style:none; margin:0; padding:0}
+  ul.log li{display:grid; grid-template-columns:64px 1fr; gap:12px; padding:9px 0; border-bottom:1px solid var(--border); font-size:15px}
+  ul.log li:last-child{border-bottom:none}
+  ul.log time{color:var(--sub); font-size:13px; font-variant-numeric:tabular-nums; padding-top:2px}
+  .found{color:#D5803B; font-style:normal}
+  .diary{border-bottom:1px solid var(--border); padding:14px 0}
+  .diary:last-child{border-bottom:none}
+  .diary h3{margin:0 0 6px; font-size:15px; font-weight:600}
+  .diary h3 span{font-weight:400; color:var(--sub); font-size:13px; margin-left:8px}
+  .diary p{margin:0; max-width:70ch; white-space:pre-wrap}
+  .shelf{display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:10px}
+  .item{border:1px solid var(--border); border-radius:8px; padding:12px; background:var(--soft)}
+  .item b{display:block; font-size:14px}
+  .item small{color:var(--sub); font-size:13px}
+  .item .rare{font-size:12px; color:var(--orange); background:var(--orange-soft); border-radius:999px; padding:2px 8px; display:inline-block; margin-top:6px}
+  .skills{display:grid; gap:14px}
+  .skill .top{display:flex; justify-content:space-between; gap:8px; margin-bottom:6px; font-size:14px}
+  .skill .top small{color:var(--sub)}
+  .empty{color:var(--sub); font-size:14px}
+  .foot{margin-top:14px; font-size:13px; color:var(--sub)}
+  @media (max-width:820px){ .grid{grid-template-columns:1fr} .panel{max-height:none} }
+  @media (prefers-reduced-motion:no-preference){
+    .breathe{animation:breathe 4s ease-in-out infinite; transform-origin:center bottom}
+    @keyframes breathe{0%,100%{transform:scaleY(1)}50%{transform:scaleY(1.015)}}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>小狐狸的日子</h1>
+    <span class="clock" id="clock"></span>
+  </header>
+
+  <div class="grid">
+    <section class="card scene">
+      <div class="stage">
+        <svg viewBox="0 0 360 168" role="img" aria-labelledby="sceneTitle">
+          <title id="sceneTitle">窗边的小狐狸</title>
+          <rect id="sky" x="0" y="0" width="360" height="168" fill="#EAF1F8"/>
+          <circle id="orb" cx="292" cy="42" r="16" fill="#F3D9A4"/>
+          <rect x="0" y="126" width="360" height="42" fill="#EFE9DF"/>
+          <rect x="40" y="104" width="78" height="22" rx="3" fill="#E2DACD"/>
+          <rect x="52" y="92" width="12" height="12" rx="2" fill="#C9D8E4"/>
+          <rect x="70" y="86" width="9" height="18" rx="2" fill="#CBDCC9"/>
+          <g transform="translate(186,66)"><g class="breathe">
+            <ellipse cx="22" cy="58" rx="46" ry="7" fill="#000" opacity=".06"/>
+            <path d="M-24 52 C-52 44 -54 20 -34 16 C-22 14 -18 30 -20 44 Z" fill="#E8A06A"/>
+            <path d="M-30 30 C-44 27 -46 18 -36 17 C-30 17 -28 24 -30 30 Z" fill="#FBF3EA"/>
+            <ellipse cx="14" cy="36" rx="32" ry="22" fill="#EFA972"/>
+            <ellipse cx="18" cy="46" rx="24" ry="12" fill="#FBF3EA"/>
+            <circle cx="38" cy="18" r="19" fill="#F2B27D"/>
+            <path d="M24 4 L22 -12 L36 -2 Z" fill="#F2B27D"/>
+            <path d="M52 4 L56 -11 L41 -3 Z" fill="#F2B27D"/>
+            <path d="M26 2 L25 -7 L33 -1 Z" fill="#D9836A"/>
+            <path d="M50 2 L53 -6 L45 -1 Z" fill="#D9836A"/>
+            <path d="M38 14 q16 2 16 14 q-10 6 -20 4 q-8 -4 -6 -12 z" fill="#FBF3EA"/>
+            <circle id="eyeL" cx="32" cy="15" r="2.6" fill="#2C2C2B"/>
+            <circle id="eyeR" cx="46" cy="15" r="2.6" fill="#2C2C2B"/>
+            <path id="lidL" d="M28 15 q4 3 8 0" stroke="#2C2C2B" stroke-width="1.8" fill="none" stroke-linecap="round" opacity="0"/>
+            <path id="lidR" d="M42 15 q4 3 8 0" stroke="#2C2C2B" stroke-width="1.8" fill="none" stroke-linecap="round" opacity="0"/>
+            <circle cx="55" cy="22" r="2.4" fill="#2C2C2B"/>
+          </g></g>
+          <g id="prop"></g>
+        </svg>
+      </div>
+
+      <div class="nameRow">
+        <input class="name" id="name" aria-label="小狐狸的名字" maxlength="10">
+        <span class="tag" id="mood"></span>
+      </div>
+      <div class="doing" id="doing"></div>
+
+      <div class="stats" id="stats"></div>
+
+      <div class="actions">
+        <button class="btn primary" id="pat">摸摸头</button>
+        <button class="btn" id="noteBtn">留一张便签</button>
+      </div>
+
+      <div class="noteBox" id="noteBox">
+        <textarea id="noteText" maxlength="60" placeholder="写给它的话，比如：今天去看看阳台"></textarea>
+        <div class="row">
+          <button class="btn primary" id="noteSave">放在桌上</button>
+          <button class="btn" id="noteCancel">算了</button>
+          <small id="noteHint"></small>
+        </div>
+      </div>
+
+      <div class="foot" id="foot"></div>
+    </section>
+
+    <section class="card">
+      <div class="tabs" role="tablist">
+        <button class="tab" role="tab" data-tab="log" aria-selected="true">动态</button>
+        <button class="tab" role="tab" data-tab="diary" aria-selected="false">日记本</button>
+        <button class="tab" role="tab" data-tab="notes" aria-selected="false">便签本</button>
+        <button class="tab" role="tab" data-tab="shelf" aria-selected="false">收藏柜</button>
+        <button class="tab" role="tab" data-tab="skill" aria-selected="false">在练的事</button>
+      </div>
+      <div class="panel" id="panel"></div>
+    </section>
+  </div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  /* =========================================================
+     设计：不依赖存档。
+     小狐狸的一生由“出生时间 + 第几个时间段”确定式生成，
+     所以无论在哪里打开、有没有 localStorage，历史都一致。
+     ========================================================= */
+  var BIRTH = new Date("2026-09-26T08:00:00+08:00").getTime();
+  var TICK = 15*60*1000;
+  var MAX_TICKS = 96*500;
+  var DEFAULT_NAME = "小狐狸";
+  var KEY = "fox_life_v3";
+
+  /* ---- 可选存档（只存名字和便签）---- */
+  var storeOK = false;
+  try { localStorage.setItem(KEY+"_t","1"); localStorage.removeItem(KEY+"_t"); storeOK = true; } catch(e){ storeOK = false; }
+  function readPrefs(){
+    if (!storeOK) return {};
+    try { return JSON.parse(localStorage.getItem(KEY) || "{}"); } catch(e){ return {}; }
+  }
+  function writePrefs(p){
+    if (!storeOK) return;
+    try { localStorage.setItem(KEY, JSON.stringify(p)); } catch(e){}
+  }
+  var prefs = readPrefs();
+  if (!prefs.name) prefs.name = DEFAULT_NAME;
+  if (!Array.isArray(prefs.notes)) prefs.notes = [];
+
+  /* ---- 确定式随机 ---- */
+  function mulberry(seed){
+    var a = seed >>> 0;
+    return function(){
+      a = (a + 0x6D2B79F5) >>> 0;
+      var t = a;
+      t = Math.imul(t ^ (t >>> 15), t | 1);
+      t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+  function clamp(v){ return Math.max(0, Math.min(100, Math.round(v))); }
+  function pick(arr, r){ return arr[Math.floor(r()*arr.length) % arr.length]; }
+
+  /* ---- 行为表 ---- */
+  var SKILLS = {obs:"观察", craft:"做手工", cook:"揉面团", plant:"养植物", read:"读书"};
+  var ACTS = [
+    {t:"趴在窗台上等太阳升上来，尾巴在地板上扫来扫去", p:[0], s:"obs", e:6, m:4},
+    {t:"用爪子把昨天捡的石头按大小重新排了一遍", p:[0,1], s:"obs", e:-3, m:3},
+    {t:"给窗边那盆薄荷浇水，顺手偷吃了一片叶子", p:[0,1], s:"plant", e:-3, m:4},
+    {t:"揉了一小团面，蹲在旁边盯着它慢慢发起来", p:[0,2], s:"cook", e:-6, m:6, f:16},
+    {t:"在纸上画你的侧脸，画了三遍都不满意，全都收进抽屉", p:[1,2], s:"craft", e:-5, m:2},
+    {t:"追着地板上那道光斑跑了半圈，撞到了椅子腿", p:[1], s:null, e:-9, m:5},
+    {t:"翻你留在桌上的那本书，把看不懂的字圈了起来", p:[1,3], s:"read", e:-6, m:1},
+    {t:"爬到书架最高层，只是想知道从上面往下看是什么样子", p:[1], s:"obs", e:-8, m:4},
+    {t:"把毛巾叠成一个窝，又觉得不圆，拆了重叠", p:[1,2], s:"craft", e:-4, m:2},
+    {t:"在阳台数楼下走过去的伞，一共七把，两把是透明的", p:[1,2], s:"obs", e:-3, m:3},
+    {t:"把小饼干摆成一排，先吃两头，把最好的那块留在最后", p:[1,2], s:null, e:-2, m:6, f:26},
+    {t:"在纸箱里睡了一觉，醒来发现耳朵被自己压折了", p:[1,3], s:null, e:16, m:3},
+    {t:"学着煮了一小锅牛奶，火关得刚好，一滴都没溢出来", p:[2,0], s:"cook", e:-5, m:7, f:24},
+    {t:"坐在门口等你回来，听见电梯响就竖一次耳朵", p:[2], s:null, e:-4, m:-2},
+    {t:"给一只路过的三花猫让了半块饼干，它没要，但蹲了一会儿", p:[2], s:null, e:-4, m:5},
+    {t:"趴在窗台数星星，数到第九颗就忘了前面数过哪些", p:[3], s:"obs", e:-5, m:5},
+    {t:"把今天的事写进本子，写到一半打了个哈欠，字歪掉了", p:[3], s:"read", e:-6, m:4},
+    {t:"半夜起来喝水，顺便检查了一遍门有没有关好", p:[3], s:null, e:-3, m:0},
+    {t:"睡着了，尾巴盖在鼻子上", p:[3], s:null, e:22, m:3},
+    {t:"在梦里跑了很远，四只爪子都在抽动", p:[3], s:null, e:18, m:4}
+  ];
+  var RAIN = [
+    {t:"下雨了，趴在玻璃上看水珠往下跑，选了一颗当自己的，输了", p:[0,1,2,3], s:"obs", e:-3, m:4},
+    {t:"打着你那把太大的伞出门，回来时只有尾巴尖是湿的", p:[1,2], s:null, e:-8, m:5}
+  ];
+  var FINDS = [
+    {n:"一颗有条纹的石头", d:"从阳台的花盆底下挖出来的", r:0},
+    {n:"半张公交车票", d:"不知道谁掉的，日期被水泡花了", r:0},
+    {n:"一片银杏叶", d:"边缘很整齐，被压在书里", r:0},
+    {n:"一根白色的猫毛", d:"来源不明，它很宝贝", r:0},
+    {n:"一枚生锈的钥匙", d:"试过家里所有的锁，都打不开", r:1},
+    {n:"一只空蜗牛壳", d:"对着灯照能看见里面的螺旋", r:1},
+    {n:"一张没写字的明信片", d:"背面是海，它说要留着写给你", r:1},
+    {n:"一块蓝色的玻璃", d:"隔着它看，整个房间都是海底", r:2},
+    {n:"一颗会响的果核", d:"摇起来沙沙的，它每天摇三次", r:2},
+    {n:"一只蝴蝶的翅膀", d:"是七彩的。它说要等你回来一起看", r:3}
+  ];
+  function period(h){ return h<5?3:h<9?0:h<17?1:h<21?2:3; }
+  function dayKey(d){ return d.getFullYear()+"-"+(d.getMonth()+1)+"-"+d.getDate(); }
+
+  /* ---- 从出生至今全量重算 ---- */
+  function buildLife(now){
+    var st = {
+      energy:70, mood:70, full:60, curio:60,
+      skills:{obs:0,craft:0,cook:0,plant:0,read:0},
+      log:[], diary:[], shelf:[], rain:false
+    };
+    var total = Math.floor((now - BIRTH)/TICK);
+    if (total < 1) total = 1;
+    if (total > MAX_TICKS) total = MAX_TICKS;
+    var day = null, dayBuf = [], prev = null;
+
+    for (var i=0;i<total;i++){
+      var ts = BIRTH + (i+1)*TICK;
+      var time = new Date(ts);
+      var r = mulberry(i*2654435761 ^ 0x9E3779B9);
+      var k = dayKey(time);
+      if (day === null) day = k;
+      if (k !== day){ diaryFor(st, day, dayBuf, ts - TICK); day = k; dayBuf = []; }
+
+      var weather = mulberry(Math.floor(i/16)*40503 ^ 0x5F356495);
+      st.rain = weather() < 0.28;
+
+      var p = period(time.getHours());
+      var pool = (st.rain ? RAIN : []).concat(ACTS).filter(function(a){ return a.p.indexOf(p) >= 0; });
+      if (st.energy < 25) pool = pool.filter(function(a){ return a.e > 0; }).concat(pool);
+      if (st.full < 45) pool = pool.filter(function(a){ return a.f; }).concat(pool);
+      if (!pool.length) pool = ACTS;
+      var act = pick(pool, r);
+      for (var tries=0; tries<4 && act.t === prev; tries++) act = pick(pool, r);
+      prev = act.t;
+
+      st.energy = clamp(st.energy + act.e + 2);
+      st.mood   = clamp(st.mood + act.m - 1);
+      st.full   = clamp(st.full + (act.f || 0) - 2);
+      st.curio  = clamp(st.curio + (act.s === "obs" ? 6 : 3) - 2);
+      if (act.s) st.skills[act.s] += 1;
+
+      var entry = {ts:ts, t:act.t, rain:st.rain};
+      if (r() < 0.055){
+        var cand = FINDS.filter(function(f){
+          var need = f.r===3?0.05:f.r===2?0.28:f.r===1?0.65:1;
+          return r() < need;
+        });
+        var found = cand.length ? pick(cand, r) : pick(FINDS, r);
+        if (!st.shelf.some(function(x){ return x.n === found.n; })){
+          st.shelf.push({n:found.n, d:found.d, r:found.r, ts:ts});
+          entry.found = found.n;
+          st.mood = clamp(st.mood + 6);
+        }
+      }
+      st.log.push(entry);
+      dayBuf.push(entry);
+      if (st.log.length > 600) st.log = st.log.slice(-300);
+    }
+    st.today = dayBuf;
+    return st;
+  }
+
+  function diaryFor(st, key, buf, ts){
+    if (!buf.length) return;
+    var r = mulberry(ts/TICK ^ 0x1B873593);
+    var open = st.mood > 72 ? pick(["今天是好天。","今天什么都挺顺。","今天我很喜欢。"], r)
+             : st.mood > 45 ? pick(["今天普普通通。","今天过得很慢。","今天没什么大事。"], r)
+             : pick(["今天有点没劲。","今天屋子里太安静了。","今天我有点想你。"], r);
+    var a = pick(buf, r).t, b = pick(buf, r).t;
+    var got = buf.filter(function(e){ return e.found; }).map(function(e){ return e.found; });
+    var lines = [open, "我" + a + "。"];
+    if (b !== a) lines.push("后来又" + b + "。");
+    if (got.length) lines.push("捡到了" + got.join("、") + "，放进柜子了。");
+    lines.push(st.energy < 35 ? "有点累，先睡了。"
+      : pick(["明天想再去阳台看看。","明天你要是来，我把东西都拿给你看。","晚安。"], r));
+    st.diary.unshift({key:key, ts:ts, text:lines.join("\n"), mood:st.mood});
+    if (st.diary.length > 60) st.diary.pop();
+  }
+
+  /* ---- 本次打开期间的互动（叠在历史上面）---- */
+  var session = [];      // {ts, t}
+  var st = buildLife(Date.now());
+
+  var $ = function(id){ return document.getElementById(id); };
+  var tab = "log";
+
+  function fmt(ts){
+    var d = new Date(ts), t = ("0"+d.getHours()).slice(-2)+":"+("0"+d.getMinutes()).slice(-2);
+    return dayKey(new Date()) === dayKey(d) ? t : (d.getMonth()+1)+"/"+d.getDate()+" "+t;
+  }
+  function moodWord(){
+    return st.mood>78?"心情很好":st.mood>60?"挺安稳":st.mood>40?"有点发呆":st.mood>25?"没什么精神":"想你";
+  }
+  function allLog(){
+    return st.log.concat(session).sort(function(x,y){ return x.ts - y.ts; });
+  }
+
+  function paintScene(){
+    var items = allLog();
+    var last = items[items.length-1] || {t:"刚睡醒，正在找自己的尾巴", ts:Date.now()};
+    var p = period(new Date(last.ts).getHours());
+    $("sky").setAttribute("fill", {0:"#F2E4CF",1:"#EAF1F8",2:"#E8DCE6",3:"#D3DBE6"}[p]);
+    var orb = $("orb");
+    orb.setAttribute("fill", p===3 ? "#F5F2E8" : "#F3D9A4");
+    orb.setAttribute("r", p===3 ? 10 : 16);
+    var sleeping = /睡|梦/.test(last.t);
+    $("lidL").setAttribute("opacity", sleeping?1:0);
+    $("lidR").setAttribute("opacity", sleeping?1:0);
+    $("eyeL").setAttribute("opacity", sleeping?0:1);
+    $("eyeR").setAttribute("opacity", sleeping?0:1);
+    $("prop").innerHTML = last.rain
+      ? '<g stroke="#9FB6CC" stroke-width="1.6" opacity=".55">'+
+        [18,64,108,152,246,300,338].map(function(x,i){ return '<line x1="'+x+'" y1="'+(8+i*7)+'" x2="'+(x-8)+'" y2="'+(34+i*7)+'"/>'; }).join("")+'</g>' : "";
+    $("doing").innerHTML = last.t + "。<span class=\"when\">" + fmt(last.ts) + (last.rain?" · 外面在下雨":"") + "</span>";
+    $("mood").textContent = moodWord();
+    $("name").value = prefs.name;
+    $("clock").textContent = "已经和你一起生活了 " + Math.max(1, Math.ceil((Date.now()-BIRTH)/86400000)) + " 天";
+    $("stats").innerHTML = [["精力",st.energy,""],["心情",st.mood,"g"],["吃饱",st.full,"o"],["好奇",st.curio,""]]
+      .map(function(r){ return '<div class="stat"><span>'+r[0]+'</span><span class="bar '+r[2]+'"><i style="width:'+r[1]+'%"></i></span><span class="val">'+r[1]+'</span></div>'; }).join("");
+    $("foot").innerHTML = storeOK
+      ? "它自己会过日子，不用管。名字和所有便签会记在这台设备上。"
+      : "它自己会过日子，不用管。这个打开方式不允许存名字，但它的日子、日记和收藏永远不会丢。";
+  }
+
+  function escapeHtml(s){
+    return String(s).replace(/[&<>"']/g, function(c){
+      return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c];
+    });
+  }
+
+  function paintPanel(){
+    var html = "";
+    if (tab === "log"){
+      html += '<p class="banner">它已经自己过了 ' + st.log.length + ' 件事。你不在也一样在过。</p>';
+      html += '<ul class="log">' + allLog().slice(-80).reverse().map(function(e){
+        return '<li><time>'+fmt(e.ts)+'</time><span>'+e.t+'。'+(e.found?' <em class="found">捡到了'+e.found+'</em>':'')+'</span></li>';
+      }).join("") + '</ul>';
+    } else if (tab === "diary"){
+      html = st.diary.length ? st.diary.map(function(d){
+        var dt = new Date(d.ts);
+        return '<article class="diary"><h3>'+(dt.getMonth()+1)+' 月 '+dt.getDate()+' 日<span>'+(d.mood>65?"字写得很圆":d.mood>40?"字有点歪":"字写得很小")+'</span></h3><p>'+d.text+'</p></article>';
+      }).join("") : '<p class="empty">它还没写完第一篇，过了今天再来看。</p>';
+    } else if (tab === "shelf"){
+      html = st.shelf.length ? '<div class="shelf">' + st.shelf.slice().reverse().map(function(it){
+        var r = ["常见","少见","稀有","只有一件"][it.r];
+        return '<div class="item"><b>'+it.n+'</b><small>'+it.d+'</small>'+(it.r>0?'<span class="rare">'+r+'</span>':'')+'</div>';
+      }).join("") + '</div>' : '<p class="empty">柜子还是空的。它总会捡到东西的。</p>';
+      html += '<p class="foot">已经收了 '+st.shelf.length+' / '+FINDS.length+' 件。</p>';
+    } else if (tab === "notes"){
+      html = prefs.notes.length
+        ? prefs.notes.map(function(n){
+            var nd = new Date(n.ts);
+            return '<article class="diary"><h3>'+ (nd.getMonth()+1) +' 月 '+ nd.getDate() +' 日<span>'+fmt(n.ts)+'</span></h3><p>'+escapeHtml(n.text)+'</p></article>';
+          }).join("")
+        : '<p class="empty">这里还没有便签。写一句给小狐狸的话吧。</p>';
+      html += '<p class="foot">便签会保存在这台设备的浏览器里。</p>';
+    } else {
+      var vals = Object.keys(st.skills).map(function(k){ return st.skills[k]; });
+      var max = Math.max.apply(null, vals.concat([10]));
+      html = '<div class="skills">' + Object.keys(SKILLS).map(function(k){
+        var v = st.skills[k], lv = Math.floor(Math.sqrt(v));
+        return '<div class="skill"><div class="top"><span>'+SKILLS[k]+' · Lv.'+lv+'</span><small>练了 '+v+' 次</small></div><span class="bar"><i style="width:'+Math.round(v/max*100)+'%"></i></span></div>';
+      }).join("") + '</div>';
+      html += '<p class="foot">它自己挑要练什么。你留的便签会让它多读一点书、多做一点手工。</p>';
+    }
+    $("panel").innerHTML = html;
+  }
+  function paint(){ paintScene(); paintPanel(); }
+  function selectTab(name){
+    tab = name;
+    Array.prototype.forEach.call(document.querySelectorAll(".tab"), function(x){
+      x.setAttribute("aria-selected", String(x.dataset.tab === name));
+    });
+    paintPanel();
+  }
+
+  /* ---- 交互 ---- */
+  Array.prototype.forEach.call(document.querySelectorAll(".tab"), function(b){
+    b.addEventListener("click", function(){ selectTab(b.dataset.tab); });
+  });
+
+  $("name").addEventListener("change", function(){
+    prefs.name = this.value.trim() || DEFAULT_NAME;
+    this.value = prefs.name;
+    writePrefs(prefs);
+    $("foot").textContent = storeOK
+      ? "名字记下了：" + prefs.name + "。下次打开还是它。"
+      : "名字只能在这次打开期间用。想要永久改名，告诉许墨就行。";
+  });
+
+  $("pat").addEventListener("click", function(){
+    st.mood = clamp(st.mood + 5);
+    var r = mulberry(Date.now() & 0xFFFFFF);
+    session.push({ts:Date.now(), t:pick([
+      "被你摸了头，假装不在意，尾巴却摇了",
+      "把脑袋往你手里又顶了一下",
+      "眼睛闭起来，喉咙里哼了一声",
+      "翻过身把肚皮朝上，这是它最大的让步"
+    ], r), rain:st.rain});
+    selectTab("log"); paintScene();
+  });
+
+  $("noteBtn").addEventListener("click", function(){
+    var box = $("noteBox");
+    box.classList.add("open");
+    $("noteText").focus();
+  });
+  $("noteCancel").addEventListener("click", function(){
+    $("noteBox").classList.remove("open");
+  });
+  $("noteSave").addEventListener("click", function(){
+    var v = $("noteText").value.trim();
+    if (!v){ $("noteHint").textContent = "先写一句话。"; return; }
+    var note = v.slice(0,60);
+    var now = Date.now();
+    prefs.notes.unshift({ts:now, text:note});
+    if (prefs.notes.length > 200) prefs.notes = prefs.notes.slice(0,200);
+    writePrefs(prefs);
+    session.push({ts:now, t:"发现桌上多了一张便签，读了三遍：「"+note+"」", rain:st.rain});
+    var r = mulberry(now & 0xFFFFFF);
+    session.push({ts:now+1000, t:pick([
+      "把便签叠成小方块收进口袋，然后去做你写的那件事了",
+      "照着便签试了一遍，回头看了看门口，想知道你什么时候回来",
+      "把便签压在石头底下，这样风就吹不跑了"
+    ], r), rain:st.rain});
+    st.mood = clamp(st.mood + 4);
+    st.skills.read += 1;
+    $("noteText").value = "";
+    $("noteHint").textContent = "它看到了。";
+    $("noteBox").classList.remove("open");
+    selectTab("log"); paintScene();
+  });
+
+  paint();
+  setInterval(function(){
+    var fresh = buildLife(Date.now());
+    if (fresh.log.length !== st.log.length){
+      fresh.today = fresh.today; st = fresh; paint();
+    }
+  }, 60*1000);
+})();
+</script>
+</body>
+</html>
