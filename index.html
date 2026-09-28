@@ -919,14 +919,14 @@ function paintScene(){
   }).join("");
 
   $("foot").innerHTML = storeOK
-    ? "点击状态条可以和小狐狸互动。名字、便签和你的计时记录都存在这台设备上。"
-    : "它自己会过日子，不用管。这个打开方式不允许存东西，但它的日子、日记和收藏永远不会丢。";
+    ? "你不在身边的时候，也会好好照顾自己。"
+    : "做好事情就来相见吧。";
 }
 
 function paintPanel(){
   var html = "";
   if (tab === "log"){
-    html += '<p class="banner">它已经自己过了 ' + st.log.length + ' 件事。你不在也一样在过。</p>';
+    html += '<p class="banner">它已经自己过了 ' + st.log.length + ' 件事。平行的世界，就这样也很好。</p>';
     html += '<ul class="log">' + allLog().slice(-80).reverse().map(function(e, idx){
       var pn = placeName(placeOfEntry(e));
       var placeLine = (idx > 0 && pn) ? '<small class="placeLine">'+pn+'</small>' : '';
@@ -958,7 +958,7 @@ function paintPanel(){
           return '<article class="diary"><h3>'+ (nd.getMonth()+1) +' 月 '+ nd.getDate() +' 日<span>'+fmt(n.ts)+'</span></h3><p>'+escapeHtml(n.text)+'</p></article>';
         }).join("")
       : '<p class="empty">这里还没有便签。写一句给小狐狸的话吧。</p>';
-    html += '<p class="foot">便签会保存在这台设备的浏览器里。</p>';
+    html += '<p class="foot">你写的，都不会丢。</p>';
   } else {
     var vals = Object.keys(st.skills).map(function(k){ return st.skills[k]; });
     var max = Math.max.apply(null, vals.concat([10]));
@@ -966,7 +966,7 @@ function paintPanel(){
       var v = st.skills[k], lv = Math.floor(Math.sqrt(v));
       return '<div class="skill"><div class="top"><span>'+SKILLS[k]+' · Lv.'+lv+'</span><small>练了 '+v+' 次</small></div><span class="bar"><i style="width:'+Math.round(v/max*100)+'%"></i></span></div>';
     }).join("") + '</div>';
-    html += '<p class="foot">它自己挑要练什么。你留的便签会让它多读一点书、多做一点手工。</p>';
+    html += '<p class="foot">小狐狸今天想做什么呢？</p>';
   }
   $("panel").innerHTML = html;
 }
